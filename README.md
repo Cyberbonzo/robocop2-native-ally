@@ -44,6 +44,9 @@ Aplicadas somente ao código traduzido, conferidas byte a byte antes da troca (`
 - **Limites dos jogadores.** O X de tela (`0x1bb604`/`0x1bb606`) era limitado a [32, 288] por constantes lidas relativas ao PC (`0x1c33c`, `0x1c33e`). Leituras relativas ao PC vêm da memória da placa, então as comparações viraram imediatos do mesmo tamanho: [32 − m, 342], com m = min(54, câmera) e a câmera em `0x1bba04`. A mira (`0x023322`) vai de −22 a 342.
 - **Pedidos de rolagem.** O jogo pede rolagem quando o X de tela passa de 160 ou fica abaixo de 112, comparando sem sinal; um X negativo, agora possível, era lido como "além de 160". As quatro comparações passaram a ter sinal.
 
+- **Objetos que saem da tela.** Balas e outros objetos eram removidos a distâncias fixas da câmera (câmera − 16 e + 336 nas balas, `0x01da58`; câmera − 64 nos inimigos da lista `0x1b9xxx`, `0x01f6ac`; e `0x026d78`, `0x02a9be`, `0x02aa3c`, `0x02aa64`, `0x020e3a`). Cada distância cresceu 54 pixels e as comparações passaram a ter sinal.
+- **Lista de sprites.** As rotinas em `0x06073a` (e quatro cópias) convertem o X do objeto para o X de 9 bits do sprite e escondiam tudo fora de [−32, 496], movendo para 496. Com o raster mais largo, a placa vira esse X em 428: [−84, −1] é a faixa direita e até 423 a esquerda; o próprio 496 cairia na faixa direita. A faixa aceita passou a [−84, 423] e o valor para esconder, 427, fica à esquerda da tela.
+
 No adaptador (`board/rc2_board.cpp`): à esquerda do início de cada trecho do mapa (o menor X de câmera desde o último salto), a cor de fundo dominante vira preta, mantendo os personagens; uma lateral com 97% de uma só cor também fica preta.
 
 ## Verificação
@@ -53,4 +56,6 @@ No adaptador (`board/rc2_board.cpp`): à esquerda do início de cada trecho do m
 - **Limites.** Partindo do mesmo estado, o jogador para em X = −22 à esquerda (32 pixels da borda larga) e a câmera não se move; na versão original ele parava em 32.
 - **No ROG Ally.** O atalho da Steam abriu o executável em 1920×1080; a apresentação ficou em 60,00 fps (no máximo dois quadros atrasados a cada 600, pior intervalo de 39 ms).
 
-Ainda não verificado: as fases 2 em diante, o modo para dois jogadores e o fim de cada trecho do mapa. No último quadro de um trecho (por exemplo, a garagem da fase 1) a faixa direita mostra camadas além do fim do mapa.
+- **Balas e personagens nas faixas.** As balas chegam às duas faixas extras; inimigos e veículos aparecem inteiros até a borda física da tela em 40.000 quadros de partida automática.
+
+Ainda não verificado: as fases 2 em diante e o modo para dois jogadores. Limites conhecidos: no último quadro de um trecho (por exemplo, a garagem da fase 1) a faixa direita mostra camadas além do fim do mapa; inimigos que o jogo cria logo depois da borda direita original podem surgir já dentro da faixa direita.

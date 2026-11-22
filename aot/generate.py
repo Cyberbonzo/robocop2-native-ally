@@ -180,6 +180,35 @@ def widen_screen_bounds(program, margin):
     for site in (0x01E968, 0x01E998, 0x023028, 0x023058):
         limits.append((site + 4, "650a", "6d0a"))           # bcs -> blt
         limits.append((site + 20, "6208", "6e08"))          # bhi -> bgt
+    # Objects leave the playfield at fixed distances from the camera (world X
+    # at (4,An) against camera X 0x1bba04 plus or minus a constant), compared
+    # unsigned. Each distance grows by the margin; the compares become signed
+    # because camera - distance can now be negative near a section start.
+    m, m2 = margin, 2 * margin
+    limits += [
+        # shots: gone past camera+0x150 or at camera-0x10
+        (0x01DA5E, "06400150", "0640" + word(0x150 + m)), (0x01DA66, "642a", "6c2a"),
+        (0x01DA92, "04400160", "0440" + word(0x160 + m2)), (0x01DA9A, "64cc", "6ccc"),
+        # actors in 0x1b9xxx: removed at camera-0x40
+        (0x01F6B4, "04410040", "0441" + word(0x40 + m)), (0x01F6BC, "6400ff64", "6c00ff64"),
+        # other objects with the same screen edges
+        (0x026D7E, "04400010", "0440" + word(0x10 + m)), (0x026D86, "650a", "6d0a"),
+        (0x02A9C4, "04400010", "0440" + word(0x10 + m)), (0x02A9CC, "640a", "6c0a"),
+        (0x02AA42, "06400150", "0640" + word(0x150 + m)), (0x02AA4A, "640a", "6c0a"),
+        (0x02AA6A, "04400010", "0440" + word(0x10 + m)), (0x02AA72, "6442", "6c42"),
+        (0x02AA74, "06400160", "0640" + word(0x160 + m2)), (0x02AA7C, "6538", "6d38"),
+        (0x020E40, "06400158", "0640" + word(0x158 + m)), (0x020E48, "6408", "6c08"),
+    ]
+    # Sprite lists (0x06073a and four copies) turn world X into the 9-bit
+    # sprite X, camera + 320 - X, and hide anything outside [-32, 496] by
+    # moving it to 496. With the wider raster the board wraps that X at 428:
+    # [-84, -1] is the right margin, up to 423 the left one, and 496 itself
+    # would be drawn in the right margin. Kept range [-84, 423]; hidden at 427,
+    # left of the screen.
+    for site in (0x06074C, 0x0607D8, 0x060864, 0x0608FA, 0x06098C):
+        limits += [(site, "0c42ffe0", "0c42" + word(-84)),
+                   (site + 6, "0c4201f0", "0c4201a7"),
+                   (site + 12, "343c01f0", "343c01ab")]
     for address, before, after in limits:
         before, after = bytes.fromhex(before), bytes.fromhex(after)
         if len(before) != len(after) or code[address:address + len(before)] != before:
