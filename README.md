@@ -47,7 +47,10 @@ Aplicadas somente ao código traduzido, conferidas byte a byte antes da troca (`
 - **Objetos que saem da tela.** Balas e outros objetos eram removidos a distâncias fixas da câmera (câmera − 16 e + 336 nas balas, `0x01da58`; câmera − 64 nos inimigos da lista `0x1b9xxx`, `0x01f6ac`; e `0x026d78`, `0x02a9be`, `0x02aa3c`, `0x02aa64`, `0x020e3a`). Cada distância cresceu 54 pixels e as comparações passaram a ter sinal.
 - **Lista de sprites.** As rotinas em `0x06073a` (e quatro cópias) convertem o X do objeto para o X de 9 bits do sprite e escondiam tudo fora de [−32, 496], movendo para 496. Com o raster mais largo, a placa vira esse X em 428: [−84, −1] é a faixa direita e até 423 a esquerda; o próprio 496 cairia na faixa direita. A faixa aceita passou a [−84, 423] e o valor para esconder, 427, fica à esquerda da tela.
 
-No adaptador (`board/rc2_board.cpp`): à esquerda do início de cada trecho do mapa (o menor X de câmera desde o último salto), a cor de fundo dominante vira preta, mantendo os personagens; uma lateral com 97% de uma só cor também fica preta.
+No adaptador (`board/rc2_board.cpp`):
+
+- **Fim do mapa.** No fim de um trecho (por exemplo, a garagem da fase 1, câmera 1728) o jogo trava a rolagem, e a faixa direita ficaria além do fim do mapa: a playfield principal só tem blocos vazios e aparecem as camadas de trás (o fundo cinza e a faixa azul com uma diagonal branca). O mapa de prioridade do DECO16 identifica a camada de cada pixel. Uma coluna das faixas extras em que a camada principal (a da frente nas 320 colunas centrais) cobre menos de 10% das linhas está fora do mapa. Nessa coluna, os pixels de cenário ficam pretos; sprites e HUD continuam visíveis. A regra não é aplicada quando alguma coluna central também não tem a camada principal.
+- **Início do trecho.** À esquerda do início de cada trecho do mapa (o menor X de câmera desde o último salto), a cor de fundo dominante vira preta, mantendo os personagens. Uma lateral com 97% de uma só cor também fica preta.
 
 ## Verificação
 
@@ -56,6 +59,7 @@ No adaptador (`board/rc2_board.cpp`): à esquerda do início de cada trecho do m
 - **Limites.** Partindo do mesmo estado, o jogador para em X = −22 à esquerda (32 pixels da borda larga) e a câmera não se move; na versão original ele parava em 32.
 - **No ROG Ally.** O atalho da Steam abriu o executável em 1920×1080; a apresentação ficou em 60,00 fps (no máximo dois quadros atrasados a cada 600, pior intervalo de 39 ms).
 
+- **Fim do trecho.** Partindo do save do jogador na garagem, a faixa direita fica preta e a explosão e o veículo continuam inteiros. Em 24.000 quadros de partida automática, a faixa direita continuou mostrando o mapa durante a rolagem.
 - **Balas e personagens nas faixas.** As balas chegam às duas faixas extras; inimigos e veículos aparecem inteiros até a borda física da tela em 40.000 quadros de partida automática.
 
-Ainda não verificado: as fases 2 em diante e o modo para dois jogadores. Limites conhecidos: no último quadro de um trecho (por exemplo, a garagem da fase 1) a faixa direita mostra camadas além do fim do mapa; inimigos que o jogo cria logo depois da borda direita original podem surgir já dentro da faixa direita.
+Ainda não verificado: as fases 2 em diante e o modo para dois jogadores. Limites conhecidos: no fim de um trecho, se o bloco seguinte do mapa não estiver vazio, a faixa direita ainda pode mostrar cenário de outro trecho; inimigos que o jogo cria logo depois da borda direita original podem surgir já dentro da faixa direita.

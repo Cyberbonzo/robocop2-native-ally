@@ -1,6 +1,7 @@
 // Single-title Data East RoboCop 2 (DE-0362 board family) peripheral and input adapter.
 #include "burnint.h"
 #include "timer.h"
+#include "deco16ic.h"
 #pragma GCC visibility push(default)
 #include "rc2_board.h"
 #pragma GCC visibility pop
@@ -19,6 +20,18 @@ extern "C" __attribute__((visibility("default"))) int rc2_debug_ram(uint8_t *out
     UINT8 *ram = rc2_main_ram();
     if (!ram || size < 0x4000) return -1;
     for (size_t i = 0; i < 0x4000; ++i) out[i] = ram[i ^ 1];
+    return 0;
+}
+// Development aid: DECO16 priority map of the last frame (512 bytes per line).
+extern "C" __attribute__((visibility("default"))) int rc2_debug_prio(uint8_t *out, size_t size) {
+    if (!deco16_prio_map || size < 512 * RC2_HEIGHT) return -1;
+    memcpy(out, deco16_prio_map, 512 * RC2_HEIGHT);
+    return 0;
+}
+// Development aid: playfield RAM (4 KB each, host byte order) of pf1-pf4.
+extern "C" __attribute__((visibility("default"))) int rc2_debug_pf(int index, uint8_t *out, size_t size) {
+    if (index < 0 || index > 3 || !deco16_pf_ram[index] || size < 0x1000) return -1;
+    memcpy(out, deco16_pf_ram[index], 0x1000);
     return 0;
 }
 static std::unordered_map<uint32_t, std::vector<unsigned char>> chips;
@@ -105,8 +118,47 @@ static void blacken_dominant(uint32_t *pixels, int x0, int x1) {
             if (pixels[y * RC2_WIDTH + x] == dominant) pixels[y * RC2_WIDTH + x] = 0;
 }
 
+// Past the end of a section map the streamed main playfield holds empty tiles
+// and only the layers behind it show (parallax backdrop, repeating fill) that
+// the 320-column game never reveals there. The DECO16 priority map tells the
+// layers apart: tilemaps write their priority value (higher = in front),
+// sprites set bit 7, the HUD layer drawn last writes 0. The main layer is the
+// front-most tilemap priority found in the 320 central columns. A margin
+// column, scanning in from the outer edge, where the main layer covers under
+// 10% of the lines is beyond the map (the empty tiles there still draw a few
+// stray pixels): its tilemap pixels become black; sprites and the HUD stay. Skipped when central columns also lack the main layer, since the
+// scene is then drawn that way.
+static int main_layer = 0;
+
+static bool lacks_main_layer(int x) {
+    int main = 0;
+    for (int y = 0; y < RC2_HEIGHT; ++y) main += deco16_prio_map[y * 512 + x] == main_layer;
+    return main * 10 < RC2_HEIGHT;
+}
+
+static void hide_beyond_map(uint32_t *pixels) {
+    main_layer = 0;
+    for (int y = 0; y < RC2_HEIGHT; y += 2)
+        for (int x = RC2_MARGIN; x < static_cast<int>(RC2_WIDTH - RC2_MARGIN); x += 2) {
+            const UINT8 p = deco16_prio_map[y * 512 + x];
+            if (!(p & 0x80)) main_layer = std::max<int>(main_layer, p);
+        }
+    if (main_layer < 2) return;
+    for (int x = RC2_MARGIN; x < static_cast<int>(RC2_WIDTH - RC2_MARGIN); x += 2)
+        if (lacks_main_layer(x)) return;
+    auto clear = [&](int x) {
+        for (int y = 0; y < RC2_HEIGHT; ++y) {
+            const UINT8 p = deco16_prio_map[y * 512 + x];
+            if (p && !(p & 0x80)) pixels[y * RC2_WIDTH + x] = 0;
+        }
+    };
+    for (int x = RC2_WIDTH - 1; x >= static_cast<int>(RC2_WIDTH - RC2_MARGIN) && lacks_main_layer(x); --x) clear(x);
+    for (int x = 0; x < static_cast<int>(RC2_MARGIN) && lacks_main_layer(x); ++x) clear(x);
+}
+
 static void hide_unused_margins(uint32_t *pixels) {
     if (!RC2_MARGIN) return;
+    hide_beyond_map(pixels);
     // Each section of a stage starts at its own camera X; the smallest X seen
     // since the camera last jumped is where that section's map begins.
     static int origin = 0, previous = -10000;
